@@ -14,10 +14,10 @@ die() { echo "ERROR: $*" >&2; exit 1; }
 SRC="$1"
 [ -f "$SRC" ] || die "file not found: $SRC"
 
-EXT="${SRC##*.}"
-case "$(echo "$EXT" | tr '[:upper:]' '[:lower:]')" in
+EXT_LOWER=$(echo "${SRC##*.}" | tr '[:upper:]' '[:lower:]')
+case "$EXT_LOWER" in
   png|jpg|jpeg) ;;
-  *) die "Threads only accepts PNG or JPEG (got .$EXT)" ;;
+  *) die "Threads only accepts PNG or JPEG (got .$EXT_LOWER)" ;;
 esac
 
 BYTES=$(wc -c < "$SRC" | tr -d ' ')
@@ -31,14 +31,28 @@ fi
 
 NAME="${2:-$(basename "${SRC%.*}")}"
 SAFE=$(echo "$NAME" | tr ' ' '-' | tr -cd '[:alnum:]._-')
-DEST="charts/$(date +%Y-%m-%d)-${SAFE}.${EXT}"
+DEST="charts/$(date +%Y-%m-%d)-${SAFE}.${EXT_LOWER}"
 
 cd "$REPO_DIR"
-cp "$SRC" "$DEST"
 
-# Only ever stage this one file. Never `git add .` — that is how secrets escape.
+# Re-encode through PIL rather than copying. This strips EXIF, which on a phone
+# photo can carry GPS coordinates - i.e. where you live - into a public repo.
+python3 - "$SRC" "$DEST" <<'PY'
+import sys
+from PIL import Image
+
+source, dest = sys.argv[1], sys.argv[2]
+with Image.open(source) as img:
+    clean = Image.new(img.mode, img.size)
+    clean.putdata(list(img.getdata()))
+    clean.save(dest)
+print(f"stripped metadata -> {dest}")
+PY
+
+# Commit ONLY this path. Scoping it here means anything else left staged in this
+# repo cannot ride along into a public commit.
 git add -- "$DEST"
-git commit -q -m "add $DEST"
+git commit -q -m "add $DEST" -- "$DEST"
 git push -q origin main
 
 SLUG=$(git config --get remote.origin.url | sed -E 's#.*github.com[:/]##; s#\.git$##')
