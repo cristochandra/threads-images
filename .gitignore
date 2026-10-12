@@ -1,0 +1,8 @@
+# Nothing secret belongs in this repo. These are here as a second line of defence.
+.env
+.env.*
+*.key
+*.pem
+credentials/
+*service-account*.json
+.DS_Store
