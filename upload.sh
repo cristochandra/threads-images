@@ -45,7 +45,9 @@ source, dest = sys.argv[1], sys.argv[2]
 with Image.open(source) as img:
     clean = Image.new(img.mode, img.size)
     clean.putdata(list(img.getdata()))
-    clean.save(dest)
+    # quality=95 because PIL defaults to 75, which visibly degrades a photo.
+    # PNG ignores these and stays lossless.
+    clean.save(dest, quality=95, subsampling=0, optimize=True)
 print(f"stripped metadata -> {dest}")
 PY
 
